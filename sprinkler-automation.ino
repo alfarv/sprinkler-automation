@@ -1,8 +1,8 @@
 #include <ArduinoOTA.h>
-#include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h>
-#include <ESP8266WebServer.h>
 #include <ESP8266mDNS.h>
+#include <ESP8266WebServer.h>
+#include <ESP8266WiFi.h>
 #include <FS.h>
 
 #define SPRINKLER_DEBUG
@@ -52,11 +52,13 @@ void setup() {
 #ifdef SPRINKLER_DEBUG
   Serial.begin(115200);
   while (!Serial);
+  Serial.println("Booting");
 #endif
   pinMode(MOTOR, OUTPUT);
   setupWiFi();
   setupDNS();
   setupWebServer();
+  setupOTA();
 }
 
 /***********************************************/
@@ -66,12 +68,14 @@ void setupWiFi() {
 #ifdef SPRINKLER_DEBUG
     Serial.println("Connecting to WiFi ");
 #endif
+    WiFi.mode(WIFI_STA);
     WiFi.begin(SERVER_WIFI_SSID, SERVER_WIFI_PASS);
-    while (WiFi.status() != WL_CONNECTED) {
-      delay(500);
+    while (WiFi.waitForConnectResult() != WL_CONNECTED) {
 #ifdef SPRINKLER_DEBUG
-      Serial.print(".");
+      Serial.println("Connection Failed! Rebooting...");
 #endif
+      delay(5000);
+      ESP.restart();
     }
 #ifdef SPRINKLER_DEBUG
     Serial.print("Connected to ");
@@ -111,45 +115,54 @@ int setupWebServer() {
 
 /*******************************************/
 
+void setupOTA() {
+  // Port defaults to 8266
+  //ArduinoOTA.setPort(8266);
+  // No authentication by default
+  //ArduinoOTA.setPassword("mypass");
+  // Password can be set with it's md5 value as well
+  // MD5(admin) = 21232f297a57a5a743894a0e4a801fc3
+  //ArduinoOTA.setPasswordHash("21232f297a57a5a743894a0e4a801fc3");
+  ArduinoOTA.onStart([]() {
+    Serial.println("Start updating");
+  });
+  ArduinoOTA.onEnd([]() {
+    Serial.println("\nEnd");
+  });
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+  });
+  ArduinoOTA.onError([](ota_error_t error) {
+    Serial.printf("Error[%u]: ", error);
+    if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
+    else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
+    else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
+    else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
+    else if (error == OTA_END_ERROR) Serial.println("End Failed");
+  });
+  ArduinoOTA.begin();
+}
+
+/*******************************************/
+
 void handleRoot() {
-  String mensaje = " MODO ";
-  mensaje += modo;
-  mensaje += " Dia ";
-  mensaje += now.dia;
-  mensaje += " Hora: ";
-  mensaje += now.hora;
-  mensaje += " : ";
-  mensaje += now.minuto;
-  if (hoyToca()) {
-    mensaje += "  Hoy Toca \n\n";
-  }
-  else {
-    mensaje += "  Hoy No Toca \n\n";
-  }
-  if (prendido) {
-    mensaje += " Prendido ";
-  }
-  else {
-    mensaje += " Apagado ";
-  }
-  mensaje += "  zona ";
-  mensaje += zona;
+  String mensaje = week[now.dia] + " " + now.hora + ":" + now.minuto;
+  mensaje += "\nMODO " + (String)modo + " - Hoy "
+             + (hoyToca() ? "" : "No") + "Toca\n\n";
+  mensaje += (prendido ? "Prendido Zona " : "Apagado Zona ") + (String)zona;
   server.send(200, "text/plain", mensaje);
 }
 
 /*******************************************/
 
 void handleNotFound() {
-  String mensaje = "File Not Found\n\n";
-  mensaje += "URI: ";
-  mensaje += server.uri();
-  mensaje += "\nMethod: ";
-  mensaje += (server.method() == HTTP_GET) ? "GET" : "POST";
-  mensaje += "\nArguments: ";
-  mensaje += server.args();
-  mensaje += "\n";
+  String mensaje = "File Not Found\n\nURI: "
+                   + (String)server.uri() + "\nMethod: "
+                   + (String)((server.method() == HTTP_GET) ? "GET" : "POST")
+                   + (String)"\nArguments: " + (String)server.args() + "\n";
+
   for (uint8_t i = 0; i < server.args(); i++) {
-    mensaje += " " + server.argName(i) + ": " + server.arg(i) + "\n";
+    mensaje += " " + (String)server.argName(i) + ": " + (String)server.arg(i) + "\n";
   }
   server.send(404, "text/plain", mensaje);
 }
@@ -161,6 +174,9 @@ void loop() {
   reloj();
   ciclo();
   server.handleClient();
+  if (zona == SPRINKLER_OFF) {
+    ArduinoOTA.handle();
+  }
 }
 
 /***********************************************/
