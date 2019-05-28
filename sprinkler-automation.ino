@@ -242,20 +242,8 @@ boolean reloj() {
       secondsInStage--;
     }
 #ifdef SPRINKLER_DEBUG
-    String mensaje = " Dia ";
-    mensaje += now.dia;
-    mensaje += " Hora ";
-    mensaje += now.hora;
-    mensaje += " Minuto ";
-    mensaje += now.minuto;
-    mensaje += " Segundo ";
-    mensaje += now.segundo;
-    mensaje += " Weekday ";
-    mensaje += now.weekday;
-    if (hoyToca()) {
-      mensaje += " HoyToca ";
-    }
-    Serial.println(mensaje);
+    Serial.printf("%s %02d:%02d:%02d\n", week[now.dia].c_str(),
+                  now.hora, now.minuto, now.segundo);
 #endif
   }
 }
@@ -295,16 +283,14 @@ void ciclo() {
       prendido = !prendido;
       if (prendido) {
 #ifdef SPRINKLER_DEBUG
-        Serial.print("prendido zona ");
-        Serial.println(zona + 1);
+        Serial.println("Prendido zona " + (String)(zona+1));
 #endif
         digitalWrite(MOTOR, HIGH);
         secondsInStage = SECONDS_PRENDIDO;
       }
       else {
 #ifdef SPRINKLER_DEBUG
-        Serial.print("apagado zona ");
-        Serial.println(zona + 1);
+        Serial.println("Apagado zona " + (String)(zona+1));
 #endif
         digitalWrite(MOTOR, LOW);
         secondsInStage = SECONDS_APAGADO;
