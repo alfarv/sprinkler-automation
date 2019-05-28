@@ -23,25 +23,28 @@ struct tiempo {
 };
 typedef struct tiempo tiempo_t;
 
+#define MOTOR LED_BUILTIN
+
 #define EVERYDAY 1
 #define ALTERNATE 2
 #define PROGRAM 3
 
+#define NUM_ZONES 4
+#define SPRINKLER_OFF NUM_ZONES
+
 #define SECONDS_PRENDIDO 300
-#define SECONDS_APAGADO 50
-#define PROG_HORA 10
-#define PROG_MINUTO 45
+#define SECONDS_APAGADO 15
+#define PROG_HORA 12
+#define PROG_MINUTO 10
 boolean progDia[7] = {false, true, true, true, false, true, false};
 int modo = PROGRAM;
 
 unsigned long nextMillis;
 tiempo_t now;
-int zona;
+int zona = SPRINKLER_OFF;
 int secondsInStage;
 boolean prendido = false;
-boolean enCiclo = false;
 boolean RelojActualizado = false;
-
 
 /***********************************************/
 
@@ -50,6 +53,7 @@ void setup() {
   Serial.begin(115200);
   while (!Serial);
 #endif
+  pinMode(MOTOR, OUTPUT);
   setupWiFi();
   setupDNS();
   setupWebServer();
@@ -94,8 +98,9 @@ int setupDNS() {
 
 int setupWebServer() {
   server.on("/", handleRoot);
-  server.on("/inline", []() {
-    server.send(200, "text/plain", "this works as well");
+  server.on("/off", []() {
+    abortCiclo();
+    server.send(200, "text/plain", "  Apagado ");
   });
   server.onNotFound(handleNotFound);
   server.begin();
@@ -264,37 +269,38 @@ void ciclo() {
   if (hoyToca()
       && now.hora == PROG_HORA
       && now.minuto == PROG_MINUTO
-      && !enCiclo) {
-    enCiclo = true;
-    zona = 1;
+      && zona == SPRINKLER_OFF) {
+    zona = 0;
     prendido = false;
+    secondsInStage = 0;
   }
-  if (enCiclo) {
-    if (zona <= 4) {
-      if (secondsInStage == 0) {
-        prendido = !prendido;
-        if (prendido) {
+  if (zona < NUM_ZONES) {
+    if (secondsInStage == 0) {
+      prendido = !prendido;
+      if (prendido) {
 #ifdef SPRINKLER_DEBUG
-          Serial.print(" prendido ");
-          Serial.print(" zona ");
-          Serial.println(zona);
+        Serial.print("prendido zona ");
+        Serial.println(zona + 1);
 #endif
-          secondsInStage = SECONDS_PRENDIDO;
-        }
-        else {
+        digitalWrite(MOTOR, HIGH);
+        secondsInStage = SECONDS_PRENDIDO;
+      }
+      else {
 #ifdef SPRINKLER_DEBUG
-          Serial.print(" apagado ");
-          Serial.print(" zona ");
-          Serial.println(zona);
+        Serial.print("apagado zona ");
+        Serial.println(zona + 1);
 #endif
-          secondsInStage = SECONDS_APAGADO;
-          zona++;
-        }
+        digitalWrite(MOTOR, LOW);
+        secondsInStage = SECONDS_APAGADO;
+        zona++;
       }
     }
-    else {
-      enCiclo = false;
-      secondsInStage = 0;
-    }
   }
+}
+
+/*********************************************/
+
+void abortCiclo() {
+  digitalWrite(MOTOR, LOW);
+  zona = SPRINKLER_OFF;
 }
