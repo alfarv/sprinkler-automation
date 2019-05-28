@@ -7,8 +7,8 @@
 
 #define SPRINKLER_DEBUG
 
-const char *SERVER_WIFI_SSID = "your_ssid"
-const char *SERVER_WIFI_PASS = "your_pass"
+const char *SERVER_WIFI_SSID = "your_ssid";
+const char *SERVER_WIFI_PASS = "your_pass";
 
 ESP8266WebServer server(80);
 
