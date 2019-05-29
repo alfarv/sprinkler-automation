@@ -7,12 +7,23 @@
 
 #define SPRINKLER_DEBUG
 
+const char *FS_FILE = "localLan.txt";
 const char *SERVER_WIFI_SSID = "your_ssid";
 const char *SERVER_WIFI_PASS = "your_pass";
 
 ESP8266WebServer server(80);
 
 const String week[7] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+
+struct wifi_config {
+  String ssid;
+  String pass;
+  boolean valid_ip;
+  byte ip[4];
+  byte gateway[4];
+  byte subnet[4];
+};
+typedef struct wifi_config wifi_config_t;
 
 struct tiempo {
   int dia;
@@ -49,27 +60,74 @@ boolean RelojActualizado = false;
 /***********************************************/
 
 void setup() {
+  wifi_config_t wifiConfig;
 #ifdef SPRINKLER_DEBUG
   Serial.begin(115200);
   while (!Serial);
   Serial.println("Booting");
 #endif
   pinMode(MOTOR, OUTPUT);
-  setupWiFi();
+  if (!SPIFFS_read(&wifiConfig)) {
+    wifiConfig.ssid = SERVER_WIFI_SSID;
+    wifiConfig.pass = SERVER_WIFI_PASS;
+  }
+  setupWiFi(&wifiConfig);
   setupDNS();
   setupWebServer();
   setupOTA();
 }
 
+/*******************************************/
+
+void readIp(File f, byte ip[4]) {
+  ip[0] = f.readStringUntil('.').toInt();
+  ip[1] = f.readStringUntil('.').toInt();
+  ip[2] = f.readStringUntil('.').toInt();
+  ip[3] = f.readStringUntil(';').toInt();
+}
+
+/*******************************************/
+
+bool SPIFFS_read(wifi_config_t *wifiConfig) {
+  SPIFFS.begin();
+  File f = SPIFFS.open(FS_FILE, "r");
+  if (!f) {
+    return false;
+  }
+
+  if (f.readStringUntil(';').toInt() == 1) {
+    f.close();
+    return false; // No data on file.
+  }
+
+  (*wifiConfig).ssid = f.readStringUntil(';');
+  (*wifiConfig).pass = f.readStringUntil(';');
+  if (f.readStringUntil(';').toInt() == 0) {
+    (*wifiConfig).valid_ip = true;
+    readIp(f, (*wifiConfig).ip);
+    readIp(f, (*wifiConfig).gateway);
+    readIp(f, (*wifiConfig).subnet);
+  }
+
+  f.close();
+  return true;
+}
+
 /***********************************************/
 
-void setupWiFi() {
+void setupWiFi(wifi_config_t *wifiConfig) {
+  WiFi.disconnect();
+
   if (WiFi.status() != WL_CONNECTED) {
 #ifdef SPRINKLER_DEBUG
     Serial.println("Connecting to WiFi ");
 #endif
     WiFi.mode(WIFI_STA);
-    WiFi.begin(SERVER_WIFI_SSID, SERVER_WIFI_PASS);
+    if (wifiConfig->valid_ip) {
+      WiFi.config(wifiConfig->ip, wifiConfig->gateway,
+                  wifiConfig->subnet);
+    }
+    WiFi.begin(wifiConfig->ssid, wifiConfig->pass);
     while (WiFi.waitForConnectResult() != WL_CONNECTED) {
 #ifdef SPRINKLER_DEBUG
       Serial.println("Connection Failed! Rebooting...");
@@ -78,8 +136,7 @@ void setupWiFi() {
       ESP.restart();
     }
 #ifdef SPRINKLER_DEBUG
-    Serial.print("Connected to ");
-    Serial.println(SERVER_WIFI_SSID);
+    Serial.println("Connected to " + (String)wifiConfig->ssid);
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
 #endif
@@ -104,7 +161,7 @@ int setupWebServer() {
   server.on("/", handleRoot);
   server.on("/off", []() {
     abortCiclo();
-    server.send(200, "text/plain", "  Apagado ");
+    server.send(200, "text/plain", "Apagado");
   });
   server.onNotFound(handleNotFound);
   server.begin();
@@ -147,9 +204,10 @@ void setupOTA() {
 
 void handleRoot() {
   String mensaje = week[now.dia] + " " + now.hora + ":" + now.minuto;
-  mensaje += "\nMODO " + (String)modo + " - Hoy "
-             + (hoyToca() ? "" : "No") + "Toca\n\n";
-  mensaje += (prendido ? "Prendido Zona " : "Apagado Zona ") + (String)zona;
+  mensaje += "\nModo " + (String)modo + " - Hoy "
+             + (hoyToca() ? "" : "No") + "Toca";
+  mensaje += (hoyToca() ? (String)" - " + PROG_HORA + (String)":" + PROG_MINUTO : "") + "\n";
+  mensaje += (prendido ? "Prendido Zona "  + (String)(zona + 1) : "Apagado");
   server.send(200, "text/plain", mensaje);
 }
 
@@ -170,7 +228,6 @@ void handleNotFound() {
 /***********************************************/
 
 void loop() {
-  actReloj();
   reloj();
   ciclo();
   server.handleClient();
@@ -189,10 +246,6 @@ void actReloj() {
   http.begin("http://free.timeanddate.com/clock/i6s3ue10/n156/tt0/tm1/th1/tb4");
   int httpCode = http.GET();
   if (httpCode == HTTP_CODE_OK) {
-#ifdef SPRINKLER_DEBUG
-    Serial.print("HTTP response code ");
-    Serial.println(httpCode);
-#endif
     String response = http.getString();
     int x = int(response.length());
     while (response.substring(x - 3, x) != "br>") {
@@ -216,7 +269,7 @@ void actReloj() {
   }
 #ifdef SPRINKLER_DEBUG
   else {
-    Serial.println("Error in HTTP request");
+    Serial.println("Error in HTTP request to update clock");
   }
 #endif
   http.end();
@@ -226,6 +279,7 @@ void actReloj() {
 
 boolean reloj() {
   if (int(millis() - nextMillis) >= 0) {
+    actReloj();
     now.segundo = (now.segundo + 1) % 60;
     if (now.segundo == 0) {
       now.minuto = (now.minuto + 1) % 60;
@@ -283,14 +337,14 @@ void ciclo() {
       prendido = !prendido;
       if (prendido) {
 #ifdef SPRINKLER_DEBUG
-        Serial.println("Prendido zona " + (String)(zona+1));
+        Serial.println("Prendido zona " + (String)(zona + 1));
 #endif
         digitalWrite(MOTOR, HIGH);
         secondsInStage = SECONDS_PRENDIDO;
       }
       else {
 #ifdef SPRINKLER_DEBUG
-        Serial.println("Apagado zona " + (String)(zona+1));
+        Serial.println("Apagado zona " + (String)(zona + 1));
 #endif
         digitalWrite(MOTOR, LOW);
         secondsInStage = SECONDS_APAGADO;
