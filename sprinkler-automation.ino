@@ -267,11 +267,12 @@ void actReloj() {
     nextMillis = millis() + 1000;
     RelojActualizado = true;
   }
-#ifdef SPRINKLER_DEBUG
   else {
+#ifdef SPRINKLER_DEBUG
     Serial.println("Error in HTTP request to update clock");
-  }
 #endif
+    ESP.restart();
+  }
   http.end();
 }
 
