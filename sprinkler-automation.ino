@@ -95,7 +95,7 @@ bool SPIFFS_read(wifi_config_t *wifiConfig) {
     return false;
   }
 
-  if (f.readStringUntil(';').toInt() == 1) {
+  if (f.readStringUntil(';').toInt() != 0) {
     f.close();
     return false; // No data on file.
   }
