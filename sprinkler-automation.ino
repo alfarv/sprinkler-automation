@@ -11,10 +11,6 @@ const char *FS_FILE = "localLan.txt";
 const char *SERVER_WIFI_SSID = "your_ssid";
 const char *SERVER_WIFI_PASS = "your_pass";
 
-ESP8266WebServer server(80);
-
-const String week[7] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
-
 struct wifi_config {
   String ssid;
   String pass;
@@ -25,6 +21,8 @@ struct wifi_config {
 };
 typedef struct wifi_config wifi_config_t;
 
+const String week[7] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+
 struct tiempo {
   int dia;
   int hora;
@@ -34,7 +32,7 @@ struct tiempo {
 };
 typedef struct tiempo tiempo_t;
 
-#define MOTOR LED_BUILTIN
+tiempo_t now;
 
 #define EVERYDAY 1
 #define ALTERNATE 2
@@ -51,11 +49,14 @@ boolean progDia[7] = {false, true, true, true, false, true, false};
 int modo = PROGRAM;
 
 unsigned long nextMillis;
-tiempo_t now;
 int zona = SPRINKLER_OFF;
 int secondsInStage;
 boolean prendido = false;
 boolean RelojActualizado = false;
+
+#define MOTOR LED_BUILTIN
+
+ESP8266WebServer server(80);
 
 /***********************************************/
 
@@ -66,7 +67,6 @@ void setup() {
   while (!Serial);
   Serial.println("Booting");
 #endif
-  pinMode(MOTOR, OUTPUT);
   if (!SPIFFS_read(&wifiConfig)) {
     wifiConfig.ssid = SERVER_WIFI_SSID;
     wifiConfig.pass = SERVER_WIFI_PASS;
@@ -75,15 +75,7 @@ void setup() {
   setupDNS();
   setupWebServer();
   setupOTA();
-}
-
-/*******************************************/
-
-void readIp(File f, byte ip[4]) {
-  ip[0] = f.readStringUntil('.').toInt();
-  ip[1] = f.readStringUntil('.').toInt();
-  ip[2] = f.readStringUntil('.').toInt();
-  ip[3] = f.readStringUntil(';').toInt();
+  pinMode(MOTOR, OUTPUT);
 }
 
 /*******************************************/
@@ -111,6 +103,15 @@ bool SPIFFS_read(wifi_config_t *wifiConfig) {
 
   f.close();
   return true;
+}
+
+/*******************************************/
+
+void readIp(File f, byte ip[4]) {
+  ip[0] = f.readStringUntil('.').toInt();
+  ip[1] = f.readStringUntil('.').toInt();
+  ip[2] = f.readStringUntil('.').toInt();
+  ip[3] = f.readStringUntil(';').toInt();
 }
 
 /***********************************************/
