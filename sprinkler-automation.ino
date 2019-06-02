@@ -70,6 +70,7 @@ void setup() {
   if (!SPIFFS_read(&wifiConfig)) {
     wifiConfig.ssid = SERVER_WIFI_SSID;
     wifiConfig.pass = SERVER_WIFI_PASS;
+    wifiConfig.valid_ip = false;
   }
   setupWiFi(&wifiConfig);
   setupDNS();
@@ -125,6 +126,9 @@ void setupWiFi(wifi_config_t *wifiConfig) {
 #endif
     WiFi.mode(WIFI_STA);
     if (wifiConfig->valid_ip) {
+#ifdef SPRINKLER_DEBUG
+      Serial.println("Using static IP configuration");
+#endif
       WiFi.config(wifiConfig->ip, wifiConfig->gateway,
                   wifiConfig->subnet);
     }
