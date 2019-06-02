@@ -2,7 +2,3 @@
 
 This system requires coordination between the valve index and the correct
 sprinkler zone.
-
-== License ==
-
-TODO
