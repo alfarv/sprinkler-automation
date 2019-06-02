@@ -71,6 +71,10 @@ void setup() {
     wifiConfig.ssid = SERVER_WIFI_SSID;
     wifiConfig.pass = SERVER_WIFI_PASS;
     wifiConfig.valid_ip = false;
+#ifdef SPRINKLER_DEBUG
+    Serial.println("Writing WiFi configuration to FS");
+#endif
+    SPIFFS_write(&wifiConfig);
   }
   setupWiFi(&wifiConfig);
   setupDNS();
@@ -100,8 +104,23 @@ bool SPIFFS_read(wifi_config_t *wifiConfig) {
     readIp(f, (*wifiConfig).ip);
     readIp(f, (*wifiConfig).gateway);
     readIp(f, (*wifiConfig).subnet);
+  } else {
+    (*wifiConfig).valid_ip = false;
   }
 
+  f.close();
+  return true;
+}
+
+/*******************************************/
+
+bool SPIFFS_write(wifi_config_t *wifiConfig) {
+  SPIFFS.begin();
+  File f = SPIFFS.open(FS_FILE, "w");
+  if (!f) {
+    return false;
+  }
+  f.print("0;" + wifiConfig->ssid + ";" + wifiConfig->pass + ";1");
   f.close();
   return true;
 }
@@ -167,6 +186,11 @@ int setupWebServer() {
   server.on("/off", []() {
     abortCiclo();
     server.send(200, "text/plain", "Apagado");
+  });
+  server.on("/format", []() {
+    int ret = SPIFFS.format();
+    server.send(200, "text/plain",
+                (String)"Format " + (ret ? "Success" : "Failed"));
   });
   server.onNotFound(handleNotFound);
   server.begin();
