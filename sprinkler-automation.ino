@@ -1,15 +1,15 @@
 #include <ArduinoOTA.h>
 #include <ESP8266HTTPClient.h>
-#include <ESP8266mDNS.h>
 #include <ESP8266WebServer.h>
 #include <ESP8266WiFi.h>
+#include <ESP8266mDNS.h>
 #include <FS.h>
 
 #define SPRINKLER_DEBUG
 
-const char *FS_FILE = "localLan.txt";
-const char *SERVER_WIFI_SSID = "your_ssid";
-const char *SERVER_WIFI_PASS = "your_pass";
+const char* FS_FILE = "localLan.txt";
+const char* SERVER_WIFI_SSID = "your_ssid";
+const char* SERVER_WIFI_PASS = "your_pass";
 
 struct wifi_config {
   String ssid;
@@ -64,7 +64,8 @@ void setup() {
   wifi_config_t wifiConfig;
 #ifdef SPRINKLER_DEBUG
   Serial.begin(115200);
-  while (!Serial);
+  while (!Serial)
+    ;
   Serial.println("Booting");
 #endif
   if (!SPIFFS_read(&wifiConfig)) {
@@ -85,7 +86,7 @@ void setup() {
 
 /*******************************************/
 
-bool SPIFFS_read(wifi_config_t *wifiConfig) {
+bool SPIFFS_read(wifi_config_t* wifiConfig) {
   SPIFFS.begin();
   File f = SPIFFS.open(FS_FILE, "r");
   if (!f) {
@@ -94,7 +95,7 @@ bool SPIFFS_read(wifi_config_t *wifiConfig) {
 
   if (f.readStringUntil(';').toInt() != 0) {
     f.close();
-    return false; // No data on file.
+    return false;  // No data on file.
   }
 
   (*wifiConfig).ssid = f.readStringUntil(';');
@@ -114,7 +115,7 @@ bool SPIFFS_read(wifi_config_t *wifiConfig) {
 
 /*******************************************/
 
-bool SPIFFS_write(wifi_config_t *wifiConfig) {
+bool SPIFFS_write(wifi_config_t* wifiConfig) {
   SPIFFS.begin();
   File f = SPIFFS.open(FS_FILE, "w");
   if (!f) {
@@ -136,7 +137,7 @@ void readIp(File f, byte ip[4]) {
 
 /***********************************************/
 
-void setupWiFi(wifi_config_t *wifiConfig) {
+void setupWiFi(wifi_config_t* wifiConfig) {
   WiFi.disconnect();
 
   if (WiFi.status() != WL_CONNECTED) {
@@ -148,8 +149,7 @@ void setupWiFi(wifi_config_t *wifiConfig) {
 #ifdef SPRINKLER_DEBUG
       Serial.println("Using static IP configuration");
 #endif
-      WiFi.config(wifiConfig->ip, wifiConfig->gateway,
-                  wifiConfig->subnet);
+      WiFi.config(wifiConfig->ip, wifiConfig->gateway, wifiConfig->subnet);
     }
     WiFi.begin(wifiConfig->ssid, wifiConfig->pass);
     while (WiFi.waitForConnectResult() != WL_CONNECTED) {
@@ -190,7 +190,7 @@ int setupWebServer() {
   server.on("/format", []() {
     int ret = SPIFFS.format();
     server.send(200, "text/plain",
-                (String)"Format " + (ret ? "Success" : "Failed"));
+                (String) "Format " + (ret ? "Success" : "Failed"));
   });
   server.onNotFound(handleNotFound);
   server.begin();
@@ -203,28 +203,29 @@ int setupWebServer() {
 
 void setupOTA() {
   // Port defaults to 8266
-  //ArduinoOTA.setPort(8266);
+  // ArduinoOTA.setPort(8266);
   // No authentication by default
-  //ArduinoOTA.setPassword("mypass");
+  // ArduinoOTA.setPassword("mypass");
   // Password can be set with it's md5 value as well
   // MD5(admin) = 21232f297a57a5a743894a0e4a801fc3
-  //ArduinoOTA.setPasswordHash("21232f297a57a5a743894a0e4a801fc3");
-  ArduinoOTA.onStart([]() {
-    Serial.println("Start updating");
-  });
-  ArduinoOTA.onEnd([]() {
-    Serial.println("\nEnd");
-  });
+  // ArduinoOTA.setPasswordHash("21232f297a57a5a743894a0e4a801fc3");
+  ArduinoOTA.onStart([]() { Serial.println("Start updating"); });
+  ArduinoOTA.onEnd([]() { Serial.println("\nEnd"); });
   ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
     Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
   });
   ArduinoOTA.onError([](ota_error_t error) {
     Serial.printf("Error[%u]: ", error);
-    if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
-    else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
-    else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
-    else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
-    else if (error == OTA_END_ERROR) Serial.println("End Failed");
+    if (error == OTA_AUTH_ERROR)
+      Serial.println("Auth Failed");
+    else if (error == OTA_BEGIN_ERROR)
+      Serial.println("Begin Failed");
+    else if (error == OTA_CONNECT_ERROR)
+      Serial.println("Connect Failed");
+    else if (error == OTA_RECEIVE_ERROR)
+      Serial.println("Receive Failed");
+    else if (error == OTA_END_ERROR)
+      Serial.println("End Failed");
   });
   ArduinoOTA.begin();
 }
@@ -233,23 +234,27 @@ void setupOTA() {
 
 void handleRoot() {
   String mensaje = week[now.dia] + " " + now.hora + ":" + now.minuto;
-  mensaje += "\nModo " + (String)modo + " - Hoy "
-             + (hoyToca() ? "" : "No") + "Toca";
-  mensaje += (hoyToca() ? (String)" - " + PROG_HORA + (String)":" + PROG_MINUTO : "") + "\n";
-  mensaje += (prendido ? "Prendido Zona "  + (String)(zona + 1) : "Apagado");
+  mensaje +=
+      "\nModo " + (String)modo + " - Hoy " + (hoyToca() ? "" : "No") + "Toca";
+  mensaje +=
+      (hoyToca() ? (String) " - " + PROG_HORA + (String) ":" + PROG_MINUTO
+                 : "") +
+      "\n";
+  mensaje += (prendido ? "Prendido Zona " + (String)(zona + 1) : "Apagado");
   server.send(200, "text/plain", mensaje);
 }
 
 /*******************************************/
 
 void handleNotFound() {
-  String mensaje = "File Not Found\n\nURI: "
-                   + (String)server.uri() + "\nMethod: "
-                   + (String)((server.method() == HTTP_GET) ? "GET" : "POST")
-                   + (String)"\nArguments: " + (String)server.args() + "\n";
+  String mensaje =
+      "File Not Found\n\nURI: " + (String)server.uri() +
+      "\nMethod: " + (String)((server.method() == HTTP_GET) ? "GET" : "POST") +
+      (String) "\nArguments: " + (String)server.args() + "\n";
 
   for (uint8_t i = 0; i < server.args(); i++) {
-    mensaje += " " + (String)server.argName(i) + ": " + (String)server.arg(i) + "\n";
+    mensaje +=
+        " " + (String)server.argName(i) + ": " + (String)server.arg(i) + "\n";
   }
   server.send(404, "text/plain", mensaje);
 }
@@ -295,8 +300,7 @@ void actReloj() {
     }
     nextMillis = millis() + 1000;
     RelojActualizado = true;
-  }
-  else {
+  } else {
 #ifdef SPRINKLER_DEBUG
     Serial.println("Error in HTTP request to update clock");
 #endif
@@ -326,8 +330,8 @@ boolean reloj() {
       secondsInStage--;
     }
 #ifdef SPRINKLER_DEBUG
-    Serial.printf("%s %02d:%02d:%02d\n", week[now.dia].c_str(),
-                  now.hora, now.minuto, now.segundo);
+    Serial.printf("%s %02d:%02d:%02d\n", week[now.dia].c_str(), now.hora,
+                  now.minuto, now.segundo);
 #endif
   }
 }
@@ -345,8 +349,7 @@ boolean hoyToca() {
     case PROGRAM:
       return progDia[now.dia];
       break;
-    default:
-      ; // Error
+    default:;  // Error
   }
   return false;
 }
@@ -354,10 +357,8 @@ boolean hoyToca() {
 /*********************************************/
 
 void ciclo() {
-  if (hoyToca()
-      && now.hora == PROG_HORA
-      && now.minuto == PROG_MINUTO
-      && zona == SPRINKLER_OFF) {
+  if (hoyToca() && now.hora == PROG_HORA && now.minuto == PROG_MINUTO &&
+      zona == SPRINKLER_OFF) {
     zona = 0;
     prendido = false;
     secondsInStage = 0;
@@ -371,8 +372,7 @@ void ciclo() {
 #endif
         digitalWrite(MOTOR, HIGH);
         secondsInStage = SECONDS_PRENDIDO;
-      }
-      else {
+      } else {
 #ifdef SPRINKLER_DEBUG
         Serial.println("Apagado zona " + (String)(zona + 1));
 #endif
