@@ -6,6 +6,7 @@
 #include <FS.h>
 
 #include "index.h"  // HTML //
+#include "wifi.h"
 
 #define SPRINKLER_DEBUG
 
@@ -78,7 +79,19 @@ void setup() {
   }
   PARAM_read(f, &wifiConfig);
   f.close();
-  setupWiFi(&wifiConfig);
+  if (wifiConfig.valid_ip) {
+    WiFiConfig config(wifiConfig.ssid, wifiConfig.pass, wifiConfig.ip,
+                      wifiConfig.gateway, wifiConfig.subnet);
+    config.setup();
+  } else {
+    WiFiConfig config(wifiConfig.ssid, wifiConfig.pass);
+    config.setup();
+  }
+#ifdef SPRINKLER_DEBUG
+  Serial.println("Connected to " + (String)wifiConfig.ssid);
+  Serial.print("IP address: ");
+  Serial.println(WiFi.localIP());
+#endif
 
   setupDNS();
   setupWebServer();
@@ -143,38 +156,6 @@ void readIp(File f, byte ip[4]) {
   ip[1] = f.readStringUntil(';').toInt();
   ip[2] = f.readStringUntil(';').toInt();
   ip[3] = f.readStringUntil(';').toInt();
-}
-
-/***********************************************/
-
-void setupWiFi(wifi_config_t* wifiConfig) {
-  WiFi.disconnect();
-
-  if (WiFi.status() != WL_CONNECTED) {
-#ifdef SPRINKLER_DEBUG
-    Serial.println("Connecting to WiFi ");
-#endif
-    WiFi.mode(WIFI_STA);
-    if (wifiConfig->valid_ip) {
-#ifdef SPRINKLER_DEBUG
-      Serial.println("Using static IP configuration");
-#endif
-      WiFi.config(wifiConfig->ip, wifiConfig->gateway, wifiConfig->subnet);
-    }
-    WiFi.begin(wifiConfig->ssid, wifiConfig->pass);
-    while (WiFi.waitForConnectResult() != WL_CONNECTED) {
-#ifdef SPRINKLER_DEBUG
-      Serial.println("Connection Failed! Rebooting...");
-#endif
-      delay(5000);
-      ESP.restart();
-    }
-#ifdef SPRINKLER_DEBUG
-    Serial.println("Connected to " + (String)wifiConfig->ssid);
-    Serial.print("IP address: ");
-    Serial.println(WiFi.localIP());
-#endif
-  }
 }
 
 /***********************************************/
