@@ -5,11 +5,13 @@
 #include <ESP8266mDNS.h>
 #include <FS.h>
 
+#include "index.h"  // HTML //
+
 #define SPRINKLER_DEBUG
 
 const char* FS_FILE = "localLan.txt";
-const char* SERVER_WIFI_SSID = "your_ssid";
-const char* SERVER_WIFI_PASS = "your_pass";
+const char* SERVER_WIFI_SSID = "sprinKleR";
+const char* SERVER_WIFI_PASS = "GreenerGrass";
 
 struct wifi_config {
   String ssid;
@@ -68,16 +70,16 @@ void setup() {
     ;
   Serial.println("Booting");
 #endif
-  if (!SPIFFS_read(&wifiConfig)) {
-    wifiConfig.ssid = SERVER_WIFI_SSID;
-    wifiConfig.pass = SERVER_WIFI_PASS;
-    wifiConfig.valid_ip = false;
-#ifdef SPRINKLER_DEBUG
-    Serial.println("Writing WiFi configuration to FS");
-#endif
-    SPIFFS_write(&wifiConfig);
+
+  SPIFFS.begin();
+  File f = SPIFFS.open(FS_FILE, "r");
+  if (!f) {
+    PARAM_write();
   }
+  PARAM_read(f, &wifiConfig);
+  f.close();
   setupWiFi(&wifiConfig);
+
   setupDNS();
   setupWebServer();
   setupOTA();
@@ -86,52 +88,60 @@ void setup() {
 
 /*******************************************/
 
-bool SPIFFS_read(wifi_config_t* wifiConfig) {
-  SPIFFS.begin();
-  File f = SPIFFS.open(FS_FILE, "r");
-  if (!f) {
-    return false;
+void PARAM_write() {
+  WiFi.mode(WIFI_AP);
+  WiFi.softAP(SERVER_WIFI_SSID, SERVER_WIFI_PASS);
+  server.on("/", PARAM_input);
+  server.onNotFound(handleNotFound);
+  server.begin();
+#ifdef SPRINKLER_DEBUG
+  Serial.println(WiFi.softAPIP());
+#endif
+  while (true) {  // revisit this :(
+    server.handleClient();
   }
-
-  if (f.readStringUntil(';').toInt() != 0) {
-    f.close();
-    return false;  // No data on file.
-  }
-
-  (*wifiConfig).ssid = f.readStringUntil(';');
-  (*wifiConfig).pass = f.readStringUntil(';');
-  if (f.readStringUntil(';').toInt() == 0) {
-    (*wifiConfig).valid_ip = true;
-    readIp(f, (*wifiConfig).ip);
-    readIp(f, (*wifiConfig).gateway);
-    readIp(f, (*wifiConfig).subnet);
-  } else {
-    (*wifiConfig).valid_ip = false;
-  }
-
-  f.close();
-  return true;
 }
 
 /*******************************************/
 
-bool SPIFFS_write(wifi_config_t* wifiConfig) {
-  SPIFFS.begin();
-  File f = SPIFFS.open(FS_FILE, "w");
-  if (!f) {
-    return false;
+void PARAM_input() {
+  String html = MAIN_page;
+  server.send(200, "text/html", html);
+  if ((server.arg("lanId") != "")) {
+    String parameters = "";
+    for (uint8_t i = 0; i < server.args() - 1; i++) {
+      parameters += server.arg(i) + ";";
+    }
+    File f = SPIFFS.open(FS_FILE, "w");
+    f.print(parameters);
+    f.close();
+#ifdef SPRINKLER_DEBUG
+    Serial.println("File writen with: " + parameters);
+#endif
   }
-  f.print("0;" + wifiConfig->ssid + ";" + wifiConfig->pass + ";1");
-  f.close();
-  return true;
+}
+
+/***********************************************/
+
+void PARAM_read(File f, wifi_config_t* wifiConfig) {
+  wifiConfig->ssid = f.readStringUntil(';');
+  wifiConfig->pass = f.readStringUntil(';');
+  if (f.readStringUntil(';') == "Manual") {
+    (*wifiConfig).valid_ip = (true);
+    readIp(f, (*wifiConfig).ip);
+    readIp(f, (*wifiConfig).gateway);
+    readIp(f, (*wifiConfig).subnet);
+  } else {
+    (*wifiConfig).valid_ip = (false);
+  }
 }
 
 /*******************************************/
 
 void readIp(File f, byte ip[4]) {
-  ip[0] = f.readStringUntil('.').toInt();
-  ip[1] = f.readStringUntil('.').toInt();
-  ip[2] = f.readStringUntil('.').toInt();
+  ip[0] = f.readStringUntil(';').toInt();
+  ip[1] = f.readStringUntil(';').toInt();
+  ip[2] = f.readStringUntil(';').toInt();
   ip[3] = f.readStringUntil(';').toInt();
 }
 
