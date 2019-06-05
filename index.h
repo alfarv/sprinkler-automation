@@ -20,13 +20,13 @@ const char MAIN_page[] PROGMEM = R"====(
       <input id="isAuto" type="radio" name="isAuto" value="Automatic" checked onclick=AUto()>
       <input id="isAuto" type="radio" name="isAuto" value="Manual" onclick=AUto()><br>
       <br>
-      .....LOCAL IP
+      Local IP
       <input id="ipEntry11" type="number" name="ipEntry11" min="1" max="255" disabled>
       <input id="ipEntry12" type="number" name="ipEntry12" min="0" max="255" disabled>
       <input id="ipEntry13" type="number" name="ipEntry13" min="0" max="255" disabled>
       <input id="ipEntry14" type="number" name="ipEntry14" min="0" max="255" disabled><br>
       <br>
-      Primary DNS
+      Gateway
       <input id="ipEntry21" type="number" name="ipEntry21" min="1" max="255" disabled>
       <input id="ipEntry22" type="number" name="ipEntry22" min="0" max="255" disabled>
       <input id="ipEntry23" type="number" name="ipEntry23" min="0" max="255" disabled>

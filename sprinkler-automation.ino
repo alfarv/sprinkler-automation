@@ -1,28 +1,12 @@
 #include <ArduinoOTA.h>
 #include <ESP8266HTTPClient.h>
 #include <ESP8266WebServer.h>
-#include <ESP8266WiFi.h>
 #include <ESP8266mDNS.h>
-#include <FS.h>
 
 #include "index.h"  // HTML //
 #include "wifi.h"
 
 #define SPRINKLER_DEBUG
-
-const char* FS_FILE = "localLan.txt";
-const char* SERVER_WIFI_SSID = "sprinKleR";
-const char* SERVER_WIFI_PASS = "GreenerGrass";
-
-struct wifi_config {
-  String ssid;
-  String pass;
-  boolean valid_ip;
-  byte ip[4];
-  byte gateway[4];
-  byte subnet[4];
-};
-typedef struct wifi_config wifi_config_t;
 
 const String week[7] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
 
@@ -61,10 +45,11 @@ boolean RelojActualizado = false;
 
 ESP8266WebServer server(80);
 
+WiFiConfig config;
+
 /***********************************************/
 
 void setup() {
-  wifi_config_t wifiConfig;
 #ifdef SPRINKLER_DEBUG
   Serial.begin(115200);
   while (!Serial)
@@ -72,26 +57,14 @@ void setup() {
   Serial.println("Booting");
 #endif
 
-  SPIFFS.begin();
-  File f = SPIFFS.open(FS_FILE, "r");
-  if (!f) {
-    PARAM_write();
-  }
-  PARAM_read(f, &wifiConfig);
-  f.close();
-  if (wifiConfig.valid_ip) {
-    WiFiConfig config(wifiConfig.ssid, wifiConfig.pass, wifiConfig.ip,
-                      wifiConfig.gateway, wifiConfig.subnet);
-    config.setup();
-  } else {
-    WiFiConfig config(wifiConfig.ssid, wifiConfig.pass);
-    config.setup();
-  }
+  config.Setup();
 #ifdef SPRINKLER_DEBUG
-  Serial.println("Connected to " + (String)wifiConfig.ssid);
-  Serial.print("IP address: ");
-  Serial.println(WiFi.localIP());
+  Serial.println("IP address: " + config.GetIP().toString());
 #endif
+  if (config.GetMode() == WIFI_AP) {
+    setupAPWebServer();
+    return;
+  }
 
   setupDNS();
   setupWebServer();
@@ -101,61 +74,35 @@ void setup() {
 
 /*******************************************/
 
-void PARAM_write() {
-  WiFi.mode(WIFI_AP);
-  WiFi.softAP(SERVER_WIFI_SSID, SERVER_WIFI_PASS);
-  server.on("/", PARAM_input);
+void setupAPWebServer() {
+  server.on("/", handleAPRoot);
   server.onNotFound(handleNotFound);
   server.begin();
-#ifdef SPRINKLER_DEBUG
-  Serial.println(WiFi.softAPIP());
-#endif
-  while (true) {  // revisit this :(
-    server.handleClient();
-  }
 }
 
 /*******************************************/
 
-void PARAM_input() {
-  String html = MAIN_page;
-  server.send(200, "text/html", html);
-  if ((server.arg("lanId") != "")) {
-    String parameters = "";
-    for (uint8_t i = 0; i < server.args() - 1; i++) {
-      parameters += server.arg(i) + ";";
-    }
-    File f = SPIFFS.open(FS_FILE, "w");
-    f.print(parameters);
-    f.close();
-#ifdef SPRINKLER_DEBUG
-    Serial.println("File writen with: " + parameters);
-#endif
+void handleAPRoot() {
+  server.send(200, "text/html", MAIN_page);
+  if (server.arg("lanId") == "") {
+    return;
+  } else if (server.arg("isAuto") == "Automatic") {
+    config.SetConfig(server.arg("lanId"), server.arg("pass"));
+  } else if (server.arg("isAuto") == "Manual") {
+    IPAddress ip(
+        server.arg("ipEntry11").toInt(), server.arg("ipEntry12").toInt(),
+        server.arg("ipEntry13").toInt(), server.arg("ipEntry14").toInt());
+    IPAddress gateway(
+        server.arg("ipEntry21").toInt(), server.arg("ipEntry22").toInt(),
+        server.arg("ipEntry23").toInt(), server.arg("ipEntry24").toInt());
+    IPAddress subnet(
+        server.arg("ipEntry31").toInt(), server.arg("ipEntry32").toInt(),
+        server.arg("ipEntry33").toInt(), server.arg("ipEntry34").toInt());
+    config.SetConfig(server.arg("lanId"), server.arg("pass"), ip, gateway,
+                     subnet);
   }
-}
-
-/***********************************************/
-
-void PARAM_read(File f, wifi_config_t* wifiConfig) {
-  wifiConfig->ssid = f.readStringUntil(';');
-  wifiConfig->pass = f.readStringUntil(';');
-  if (f.readStringUntil(';') == "Manual") {
-    (*wifiConfig).valid_ip = (true);
-    readIp(f, (*wifiConfig).ip);
-    readIp(f, (*wifiConfig).gateway);
-    readIp(f, (*wifiConfig).subnet);
-  } else {
-    (*wifiConfig).valid_ip = (false);
-  }
-}
-
-/*******************************************/
-
-void readIp(File f, byte ip[4]) {
-  ip[0] = f.readStringUntil(';').toInt();
-  ip[1] = f.readStringUntil(';').toInt();
-  ip[2] = f.readStringUntil(';').toInt();
-  ip[3] = f.readStringUntil(';').toInt();
+  config.Write();
+  ESP.restart();
 }
 
 /***********************************************/
@@ -253,6 +200,10 @@ void handleNotFound() {
 /***********************************************/
 
 void loop() {
+  if (config.GetMode() == WIFI_AP) {
+    server.handleClient();
+    return;
+  }
   reloj();
   ciclo();
   server.handleClient();
