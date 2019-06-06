@@ -61,13 +61,13 @@ void setup() {
 #ifdef SPRINKLER_DEBUG
   Serial.println("IP address: " + config.GetIP().toString());
 #endif
+
   if (config.GetMode() == WIFI_AP) {
     setupAPWebServer();
     return;
   }
-
-  setupDNS();
   setupWebServer();
+  setupDNS();
   setupOTA();
   pinMode(MOTOR, OUTPUT);
 }
@@ -107,18 +107,6 @@ void handleAPRoot() {
 
 /***********************************************/
 
-int setupDNS() {
-  int ret = MDNS.begin("esp8266");
-#ifdef SPRINKLER_DEBUG
-  if (ret) {
-    Serial.println("MDNS responder started");
-  }
-#endif
-  return ret;
-}
-
-/***********************************************/
-
 int setupWebServer() {
   server.on("/", handleRoot);
   server.on("/off", []() {
@@ -135,37 +123,6 @@ int setupWebServer() {
 #ifdef SPRINKLER_DEBUG
   Serial.println("HTTP server started");
 #endif
-}
-
-/*******************************************/
-
-void setupOTA() {
-  // Port defaults to 8266
-  // ArduinoOTA.setPort(8266);
-  // No authentication by default
-  // ArduinoOTA.setPassword("mypass");
-  // Password can be set with it's md5 value as well
-  // MD5(admin) = 21232f297a57a5a743894a0e4a801fc3
-  // ArduinoOTA.setPasswordHash("21232f297a57a5a743894a0e4a801fc3");
-  ArduinoOTA.onStart([]() { Serial.println("Start updating"); });
-  ArduinoOTA.onEnd([]() { Serial.println("\nEnd"); });
-  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-    Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
-  });
-  ArduinoOTA.onError([](ota_error_t error) {
-    Serial.printf("Error[%u]: ", error);
-    if (error == OTA_AUTH_ERROR)
-      Serial.println("Auth Failed");
-    else if (error == OTA_BEGIN_ERROR)
-      Serial.println("Begin Failed");
-    else if (error == OTA_CONNECT_ERROR)
-      Serial.println("Connect Failed");
-    else if (error == OTA_RECEIVE_ERROR)
-      Serial.println("Receive Failed");
-    else if (error == OTA_END_ERROR)
-      Serial.println("End Failed");
-  });
-  ArduinoOTA.begin();
 }
 
 /*******************************************/
@@ -199,16 +156,85 @@ void handleNotFound() {
 
 /***********************************************/
 
+int setupDNS() {
+  int ret = MDNS.begin("esp8266");
+#ifdef SPRINKLER_DEBUG
+  if (ret) {
+    Serial.println("MDNS responder started");
+  }
+#endif
+  return ret;
+}
+
+/*******************************************/
+
+void setupOTA() {
+  // Port defaults to 8266
+  // ArduinoOTA.setPort(8266);
+  // No authentication by default
+  // ArduinoOTA.setPassword("mypass");
+  // Password can be set with it's md5 value as well
+  // MD5(admin) = 21232f297a57a5a743894a0e4a801fc3
+  // ArduinoOTA.setPasswordHash("21232f297a57a5a743894a0e4a801fc3");
+  ArduinoOTA.onStart([]() { Serial.println("Start updating"); });
+  ArduinoOTA.onEnd([]() { Serial.println("\nEnd"); });
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+  });
+  ArduinoOTA.onError([](ota_error_t error) {
+    Serial.printf("Error[%u]: ", error);
+    if (error == OTA_AUTH_ERROR)
+      Serial.println("Auth Failed");
+    else if (error == OTA_BEGIN_ERROR)
+      Serial.println("Begin Failed");
+    else if (error == OTA_CONNECT_ERROR)
+      Serial.println("Connect Failed");
+    else if (error == OTA_RECEIVE_ERROR)
+      Serial.println("Receive Failed");
+    else if (error == OTA_END_ERROR)
+      Serial.println("End Failed");
+  });
+  ArduinoOTA.begin();
+}
+
+/***********************************************/
+
 void loop() {
+  server.handleClient();
   if (config.GetMode() == WIFI_AP) {
-    server.handleClient();
     return;
   }
   reloj();
   ciclo();
-  server.handleClient();
   if (zona == SPRINKLER_OFF) {
     ArduinoOTA.handle();
+  }
+}
+
+/***********************************************/
+
+boolean reloj() {
+  if (int(millis() - nextMillis) >= 0) {
+    actReloj();
+    now.segundo = (now.segundo + 1) % 60;
+    if (now.segundo == 0) {
+      now.minuto = (now.minuto + 1) % 60;
+      if (now.minuto == 0) {
+        now.hora = (now.hora + 1) % 24;
+        if (now.hora == 0) {
+          now.dia = (now.dia + 1) % 7;
+          RelojActualizado = false;
+        }
+      }
+    }
+    nextMillis += 1000;
+    if (secondsInStage > 0) {
+      secondsInStage--;
+    }
+#ifdef SPRINKLER_DEBUG
+    Serial.printf("%s %02d:%02d:%02d\n", week[now.dia].c_str(), now.hora,
+                  now.minuto, now.segundo);
+#endif
   }
 }
 
@@ -249,33 +275,6 @@ void actReloj() {
     ESP.restart();
   }
   http.end();
-}
-
-/***********************************************/
-
-boolean reloj() {
-  if (int(millis() - nextMillis) >= 0) {
-    actReloj();
-    now.segundo = (now.segundo + 1) % 60;
-    if (now.segundo == 0) {
-      now.minuto = (now.minuto + 1) % 60;
-      if (now.minuto == 0) {
-        now.hora = (now.hora + 1) % 24;
-        if (now.hora == 0) {
-          now.dia = (now.dia + 1) % 7;
-          RelojActualizado = false;
-        }
-      }
-    }
-    nextMillis += 1000;
-    if (secondsInStage > 0) {
-      secondsInStage--;
-    }
-#ifdef SPRINKLER_DEBUG
-    Serial.printf("%s %02d:%02d:%02d\n", week[now.dia].c_str(), now.hora,
-                  now.minuto, now.segundo);
-#endif
-  }
 }
 
 /**********************************************/
