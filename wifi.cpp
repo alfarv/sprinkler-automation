@@ -14,7 +14,7 @@ void WiFiConfig::Setup() {
     mode_ = WIFI_STA;
     WiFi.mode(mode_);
     if (static_ip_) {
-      IPAddress dns(8,8,8,8); // Google Public DNS
+      IPAddress dns(8, 8, 8, 8);  // Google Public DNS
       WiFi.config(ip_, gateway_, subnet_, dns);
     }
     WiFi.begin(ssid_, pass_);

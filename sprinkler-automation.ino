@@ -1,5 +1,4 @@
 #include <ArduinoOTA.h>
-#include <ESP8266HTTPClient.h>
 #include <ESP8266WebServer.h>
 #include <ESP8266mDNS.h>
 
@@ -113,15 +112,12 @@ int setupWebServer() {
 /*******************************************/
 
 void handleRoot() {
-  String mensaje = sprinkler_clock.GetTime();
-  mensaje +=
-      "\nModo " + (String)modo + " - Hoy " + (hoyToca() ? "" : "No") + "Toca";
-  mensaje +=
-      (hoyToca() ? (String) " - " + PROG_HORA + (String) ":" + PROG_MINUTO
-                 : "") +
-      "\n";
-  mensaje += (prendido ? "Prendido Zona " + (String)(zona + 1) : "Apagado");
-  server.send(200, "text/plain", mensaje);
+  server.send(
+      200, "text/plain",
+      sprinkler_clock.GetTime() + "\nModo " + (String)modo +
+          (hoyToca() ? "\nHoy Toca - " + PROG_HORA + (String) ":" + PROG_MINUTO
+                     : "\nHoy No Toca") +
+          (prendido ? "\nPrendido Zona " + (String)(zona + 1) : "\nApagado"));
 }
 
 /*******************************************/
