@@ -3,6 +3,8 @@
 
 #include <ESP8266WiFi.h>
 #include <FS.h>
+#include <NTPClient.h>
+#include <WiFiUdp.h>
 
 #include "Arduino.h"
 

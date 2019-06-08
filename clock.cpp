@@ -1,12 +1,16 @@
 #include "clock.h"
 
-#include <ESP8266HTTPClient.h>
+// #include <ESP8266HTTPClient.h>
+#include <NTPClient.h>
+#include <WiFiUdp.h>
 
 #include "Arduino.h"
 
 const String kWeek[7] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
-const String kTimeServer =
-    "http://free.timeanddate.com/clock/i6s3ue10/n156/tt0/tm1/th1/tb4";
+const long kTimeZone = -4*3600;
+
+WiFiUDP ntpUDP;
+NTPClient timeClient(ntpUDP, "pool.ntp.org", kTimeZone);
 
 void Clock::HandleTime() {
   if (int(millis() - next_millis_) >= 0) {
@@ -59,32 +63,17 @@ void Clock::Update() {
   if (!needs_update_) {
     return;
   }
-  HTTPClient http;
-  http.begin(kTimeServer);
-  if (http.GET() == HTTP_CODE_OK) {
-    String response = http.getString();
-    int x = int(response.length());
-    while (response.substring(x - 3, x) != "br>") {
-      x--;
-    }
-    hour_ = response.substring(x, x + 2).toInt();
-    minute_ = response.substring(x + 3, x + 5).toInt();
-    second_ = response.substring(x + 6, x + 8).toInt();
-    while (response.substring(x - 3, x) != "t1>") {
-      x--;
-    }
-    String weekday = response.substring(x, x + 3);
-    for (int i = 0; i < 7; i++) {
-      if (weekday.equals(kWeek[i])) {
-        day_ = i;
-        break;
-      }
-    }
-    next_millis_ = millis() + 1000;
-    needs_update_ = false;
-  } else {
-    // TODO: Better handle failures
-    ESP.restart();
+
+  timeClient.begin();
+  while (!timeClient.update()){
+   timeClient.forceUpdate();
   }
-  http.end();
+
+  day_ = timeClient.getDay();
+  hour_ = timeClient.getHours();
+  minute_ = timeClient.getMinutes();
+  second_ = timeClient.getSeconds();
+  next_millis_ = millis() + 1000;
+  needs_update_ = false;
+  timeClient.end();
 }

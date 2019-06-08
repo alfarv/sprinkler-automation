@@ -2,6 +2,9 @@
 #define SPRINKLER_AUTOMATION_CLOCK_H_
 
 #include "Arduino.h"
+#include <NTPClient.h>
+#include <WiFiUdp.h>
+
 
 class Clock {
  public:
