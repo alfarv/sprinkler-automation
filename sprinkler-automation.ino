@@ -17,15 +17,15 @@
 
 #define SECONDS_PRENDIDO 300
 #define SECONDS_APAGADO 15
-#define PROG_HORA 12
+#define PROG_HORA 2
 #define PROG_MINUTO 10
 boolean progDia[7] = {false, true, true, true, false, true, false};
-int modo = PROGRAM;
+int modo = EVERYDAY;
 
 int zona = SPRINKLER_OFF;
-boolean prendido = false;
+boolean prendido, manual_on = false;
 
-#define MOTOR LED_BUILTIN
+#define MOTOR 15
 
 Clock sprinkler_clock;
 ESP8266WebServer server(80);
@@ -93,9 +93,13 @@ void handleAPRoot() {
 
 int setupWebServer() {
   server.on("/", handleRoot);
+  server.on("/on", []() {
+    manual_on=true;
+    server.send(200, "text/plain", "Cycle Initiated");
+  });
   server.on("/off", []() {
     abortCiclo();
-    server.send(200, "text/plain", "Apagado");
+    server.send(200, "text/plain", "Turned Off");
   });
   server.on("/format", []() {
     int ret = SPIFFS.format();
@@ -213,8 +217,8 @@ boolean hoyToca() {
 /*********************************************/
 
 void ciclo() {
-  if (hoyToca() && sprinkler_clock.GetHour() == PROG_HORA &&
-      sprinkler_clock.GetMinute() == PROG_MINUTO && zona == SPRINKLER_OFF) {
+  if ((hoyToca() && sprinkler_clock.GetHour() == PROG_HORA &&
+      sprinkler_clock.GetMinute() == PROG_MINUTO && zona == SPRINKLER_OFF)or manual_on) {
     zona = 0;
     prendido = false;
     sprinkler_clock.SetTimer(0);
@@ -222,6 +226,7 @@ void ciclo() {
   if (zona < NUM_ZONES) {
     if (sprinkler_clock.IsTimerDone()) {
       prendido = !prendido;
+      manual_on=false;
       if (prendido) {
 #ifdef SPRINKLER_DEBUG
         Serial.println("Prendido zona " + (String)(zona + 1));
